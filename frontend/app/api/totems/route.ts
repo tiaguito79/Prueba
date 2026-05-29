@@ -4,6 +4,12 @@ import { GridFSBucket } from "mongodb"
 import connectDB from "@/lib/mongodb"
 import { subirPdfAGridFS } from "@/lib/gridfs"
 import { extractTextFromPdfBuffer, parseFaqText } from "@/lib/pdf-service"
+import {
+  createContentsFromCloudinary,
+  processFaqPdfFromCloudinary,
+  type UploadedArchivoInput,
+  type UploadedPdfInput,
+} from "@/lib/totem-content.server"
 import Totem from "@/models/Totem"
 import Content from "@/models/Content"
 import DocumentModel from "@/models/Document"
@@ -20,18 +26,18 @@ async function subirArchivoAGridFS(file: File, nombre: string) {
   }
 
   const bucket = new GridFSBucket(db, {
-    bucketName: "uploads"
+    bucketName: "uploads",
   })
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
   return new Promise<any>((resolve, reject) => {
-   const uploadStream = bucket.openUploadStream(file.name, {
-  metadata: {
-    nombre,
-    contentType: file.type
-  }
-})
+    const uploadStream = bucket.openUploadStream(file.name, {
+      metadata: {
+        nombre,
+        contentType: file.type,
+      },
+    })
 
     uploadStream.end(buffer)
 
@@ -41,6 +47,60 @@ async function subirArchivoAGridFS(file: File, nombre: string) {
 
     uploadStream.on("error", reject)
   })
+}
+
+function isJsonRequest(request: Request): boolean {
+  const ct = request.headers.get("content-type") || ""
+  return ct.includes("application/json")
+}
+
+async function createTotemFromCloudinary(body: {
+  nombre: string
+  totem_id: string
+  campus_id: string
+  plantilla: string
+  estado: string
+  usuario: string
+  contraseña: string
+  mostrarDesde?: string
+  mostrarHasta?: string
+  info_bloques?: Array<{ titulo: string; contenido: string }>
+  archivos?: UploadedArchivoInput[]
+  faqPdf?: UploadedPdfInput | null
+}) {
+  const archivos = Array.isArray(body.archivos) ? body.archivos : []
+  const archivosGuardados = await createContentsFromCloudinary(archivos, body.nombre)
+
+  const newTotem = await Totem.create({
+    nombre: body.nombre,
+    totem_id: body.totem_id,
+    campus_id: body.campus_id,
+    plantilla: body.plantilla,
+    estado: body.estado,
+    credenciales: {
+      usuario: body.usuario,
+      contraseña: body.contraseña,
+    },
+    contenido: {
+      mostrarDesde: body.mostrarDesde ? new Date(body.mostrarDesde) : null,
+      mostrarHasta: body.mostrarHasta ? new Date(body.mostrarHasta) : null,
+      archivos: archivosGuardados,
+    },
+    contenido_count: archivosGuardados.length,
+    ...(Array.isArray(body.info_bloques) && body.info_bloques.length > 0
+      ? { info_bloques: body.info_bloques }
+      : {}),
+  })
+
+  if (body.faqPdf?.url && body.faqPdf.publicId) {
+    try {
+      await processFaqPdfFromCloudinary(body.faqPdf, newTotem._id, body.nombre)
+    } catch (pdfError) {
+      console.error("[POST totem] ERROR procesando PDF Cloudinary:", pdfError)
+    }
+  }
+
+  return newTotem
 }
 
 export async function GET() {
@@ -64,6 +124,20 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await connectDB()
+
+    if (isJsonRequest(request)) {
+      const body = await request.json()
+
+      if (!body.nombre || !body.totem_id || !body.campus_id || !body.plantilla) {
+        return NextResponse.json(
+          { error: "Faltan campos obligatorios para crear el tótem" },
+          { status: 400 }
+        )
+      }
+
+      const newTotem = await createTotemFromCloudinary(body)
+      return NextResponse.json(newTotem, { status: 201 })
+    }
 
     const formData = await request.formData()
 
@@ -101,13 +175,13 @@ export async function POST(request: Request) {
           nombre: item.slot,
           fileId,
           url_contenido: `/api/contents/file/${fileId}`,
-          descripcion: `${item.slot} del tótem ${nombre}`
+          descripcion: `${item.slot} del tótem ${nombre}`,
         })
 
         archivosGuardados.push({
           slot: item.slot,
           tipo: item.tipo,
-          contentId: content._id
+          contentId: content._id,
         })
       }
     }
@@ -115,7 +189,9 @@ export async function POST(request: Request) {
     let infoBloques = null
     const infoBloqueRaw = formData.get("info_bloques") as string | null
     if (infoBloqueRaw) {
-      try { infoBloques = JSON.parse(infoBloqueRaw) } catch {}
+      try {
+        infoBloques = JSON.parse(infoBloqueRaw)
+      } catch {}
     }
 
     const newTotem = await Totem.create({
@@ -126,35 +202,27 @@ export async function POST(request: Request) {
       estado,
       credenciales: {
         usuario,
-        contraseña
+        contraseña,
       },
       contenido: {
         mostrarDesde: mostrarDesde ? new Date(mostrarDesde) : null,
         mostrarHasta: mostrarHasta ? new Date(mostrarHasta) : null,
-        archivos: archivosGuardados
+        archivos: archivosGuardados,
       },
       contenido_count: archivosGuardados.length,
       ...(infoBloques ? { info_bloques: infoBloques } : {}),
     })
 
     const pdfFile = formData.get("faqPdf") as File | null
-    console.log("[POST totem] faqPdf recibido:", pdfFile ? `${pdfFile.name} (${pdfFile.size} bytes)` : "ninguno")
 
     if (pdfFile && pdfFile.size > 0) {
       try {
         const pdfBuffer = Buffer.from(await pdfFile.arrayBuffer())
         const pdfFileName = `${Date.now()}-${pdfFile.name}`
 
-        console.log("[POST totem] Subiendo PDF a GridFS...")
         const pdfFileId = await subirPdfAGridFS(pdfBuffer, pdfFileName, pdfFile.type)
-        console.log("[POST totem] PDF subido, fileId:", pdfFileId)
-
-        console.log("[POST totem] Extrayendo texto del PDF...")
         const extractedText = await extractTextFromPdfBuffer(pdfBuffer)
-        console.log("[POST totem] Texto extraído, longitud:", extractedText.length)
-
         const items = parseFaqText(extractedText)
-        console.log("[POST totem] FAQ items parseados:", items.length)
 
         const document = await DocumentModel.create({
           name: pdfFile.name,
@@ -163,9 +231,8 @@ export async function POST(request: Request) {
           mimeType: pdfFile.type,
           extractedText,
         })
-        console.log("[POST totem] Document creado:", document._id)
 
-        const faq = await Faq.create({
+        await Faq.create({
           title: `FAQ - ${nombre}`,
           campusId: null,
           totemId: newTotem._id,
@@ -174,7 +241,6 @@ export async function POST(request: Request) {
           items,
           isActive: true,
         })
-        console.log("[POST totem] FAQ creada:", faq._id, "con", items.length, "preguntas")
       } catch (pdfError) {
         console.error("[POST totem] ERROR procesando PDF:", pdfError)
       }

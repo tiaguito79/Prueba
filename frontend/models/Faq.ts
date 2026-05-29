@@ -6,7 +6,9 @@ const FaqSchema = new Schema(
     campusId: { type: Schema.Types.ObjectId, ref: "campuses", default: null },
     totemId: { type: Schema.Types.ObjectId, ref: "totems", default: null },
     documentId: { type: Schema.Types.ObjectId, ref: "documents" },
-    pdfFileId: { type: Schema.Types.ObjectId, required: true },
+    pdfFileId: { type: Schema.Types.ObjectId, required: false },
+    pdfCloudinaryPublicId: { type: String },
+    pdfUrl: { type: String },
     items: [
       {
         question: { type: String, required: true },

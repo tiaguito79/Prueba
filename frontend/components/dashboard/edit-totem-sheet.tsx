@@ -258,70 +258,85 @@ export function EditTotemSheet({
 
     try {
       const token = localStorage.getItem("token")
+      const bloquesValidos = infoBloques.filter((b) => b.titulo.trim() && b.contenido.trim())
 
       if (templateChanged && selectedTemplateObj) {
-        const formData = new FormData()
-        formData.append("nombre", nombre.trim())
-        formData.append("totem_id", totem.id)
-        formData.append("campus_id", getSedeNameFromId(selectedSede))
-        formData.append("plantilla", getTemplateNameFromId(selectedTemplate))
-        formData.append("estado", selectedEstado)
-        formData.append("mostrarDesde", fechaInicioContenido)
-        formData.append("mostrarHasta", fechaFinContenido)
+        toast.info("Subiendo archivos a Cloudinary...")
 
-        Object.entries(imagenes).forEach(([index, file]) => {
-          if (file) formData.append(`imagen${index}`, file)
-        })
+        const archivos = await uploadTemplateMedia(
+          imagenes,
+          videos,
+          selectedTemplateObj.req.images,
+          selectedTemplateObj.req.videos,
+          (message) => toast.info(message)
+        )
 
-        Object.entries(videos).forEach(([index, file]) => {
-          if (file) formData.append(`video${index}`, file)
-        })
-
+        let faqPdfPayload = null
         if (faqPdf) {
-          formData.append("faqPdf", faqPdf)
-        }
-
-        const bloquesValidos = infoBloques.filter((b) => b.titulo.trim() && b.contenido.trim())
-        if (bloquesValidos.length > 0) {
-          formData.append("info_bloques", JSON.stringify(bloquesValidos))
+          toast.info("Subiendo PDF de FAQ...")
+          const uploadedPdf = await uploadFileToCloudinary(faqPdf, "raw")
+          faqPdfPayload = {
+            url: uploadedPdf.url,
+            publicId: uploadedPdf.publicId,
+            name: faqPdf.name,
+          }
         }
 
         const response = await fetch(`/api/totems/${totem.id}`, {
           method: "PUT",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            nombre: nombre.trim(),
+            campus_id: getSedeNameFromId(selectedSede),
+            plantilla: getTemplateNameFromId(selectedTemplate),
+            estado: selectedEstado,
+            mostrarDesde: fechaInicioContenido,
+            mostrarHasta: fechaFinContenido,
+            replaceContent: true,
+            archivos,
+            faqPdf: faqPdfPayload,
+            info_bloques: bloquesValidos.length > 0 ? bloquesValidos : undefined,
+          }),
         })
 
         if (!response.ok) {
-          toast.error("Error al actualizar el tótem con nueva plantilla.")
+          const err = await response.json().catch(() => ({}))
+          toast.error(err.error || "Error al actualizar el tótem con nueva plantilla.")
           return
         }
       } else if (faqPdf) {
-        const formData = new FormData()
-        formData.append("nombre", nombre.trim())
-        formData.append("campus_id", getSedeNameFromId(selectedSede))
-        formData.append("plantilla", getTemplateNameFromId(selectedTemplate))
-        formData.append("estado", selectedEstado)
-        formData.append("faqPdf", faqPdf)
-        formData.append("keepContent", "true")
-
-        const bloquesValidos = infoBloques.filter((b) => b.titulo.trim() && b.contenido.trim())
-        if (bloquesValidos.length > 0) {
-          formData.append("info_bloques", JSON.stringify(bloquesValidos))
-        }
+        toast.info("Subiendo PDF de FAQ...")
+        const uploadedPdf = await uploadFileToCloudinary(faqPdf, "raw")
 
         const response = await fetch(`/api/totems/${totem.id}`, {
           method: "PUT",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            nombre: nombre.trim(),
+            campus_id: getSedeNameFromId(selectedSede),
+            plantilla: getTemplateNameFromId(selectedTemplate),
+            estado: selectedEstado,
+            faqPdf: {
+              url: uploadedPdf.url,
+              publicId: uploadedPdf.publicId,
+              name: faqPdf.name,
+            },
+            info_bloques: bloquesValidos.length > 0 ? bloquesValidos : undefined,
+          }),
         })
 
         if (!response.ok) {
-          toast.error("Error al actualizar el tótem.")
+          const err = await response.json().catch(() => ({}))
+          toast.error(err.error || "Error al actualizar el tótem.")
           return
         }
       } else {
-        const bloquesValidos = infoBloques.filter((b) => b.titulo.trim() && b.contenido.trim())
         const response = await fetch(`/api/totems/${totem.id}`, {
           method: "PUT",
           headers: {
@@ -348,7 +363,9 @@ export function EditTotemSheet({
       onOpenChange(false)
     } catch (error) {
       console.error("Error al editar:", error)
-      toast.error("Error de conexión al actualizar el tótem.")
+      toast.error(
+        error instanceof Error ? error.message : "Error de conexión al actualizar el tótem."
+      )
     } finally {
       setIsSubmitting(false)
     }

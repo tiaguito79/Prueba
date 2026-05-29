@@ -4,6 +4,13 @@ import { GridFSBucket } from "mongodb"
 import connectDB from "@/lib/mongodb"
 import { eliminarArchivoGridFS, subirPdfAGridFS } from "@/lib/gridfs"
 import { extractTextFromPdfBuffer, parseFaqText } from "@/lib/pdf-service"
+import {
+  createContentsFromCloudinary,
+  deleteTotemContents,
+  replaceTotemFaqFromCloudinary,
+  type UploadedArchivoInput,
+  type UploadedPdfInput,
+} from "@/lib/totem-content.server"
 import Totem from "@/models/Totem"
 import Content from "@/models/Content"
 import DocumentModel from "@/models/Document"
@@ -33,6 +40,29 @@ async function subirArchivoAGridFS(file: File, nombre: string) {
 function isFormData(request: Request): boolean {
   const ct = request.headers.get("content-type") || ""
   return ct.includes("multipart/form-data")
+}
+
+async function applyCloudinaryContentUpdate(
+  totem: any,
+  updateData: Record<string, any>,
+  archivos: UploadedArchivoInput[],
+  mostrarDesde?: string,
+  mostrarHasta?: string
+) {
+  const oldArchivos = totem.contenido?.archivos ?? []
+  await deleteTotemContents(oldArchivos)
+
+  const archivosGuardados = await createContentsFromCloudinary(
+    archivos,
+    updateData.nombre || totem.nombre
+  )
+
+  updateData.contenido = {
+    mostrarDesde: mostrarDesde ? new Date(mostrarDesde) : null,
+    mostrarHasta: mostrarHasta ? new Date(mostrarHasta) : null,
+    archivos: archivosGuardados,
+  }
+  updateData.contenido_count = archivosGuardados.length
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
@@ -79,7 +109,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
       const infoBloqueRaw = formData.get("info_bloques") as string | null
       if (infoBloqueRaw) {
-        try { updateData.info_bloques = JSON.parse(infoBloqueRaw) } catch {}
+        try {
+          updateData.info_bloques = JSON.parse(infoBloqueRaw)
+        } catch {}
       }
 
       if (!keepContent) {
@@ -186,17 +218,46 @@ export async function PUT(request: Request, { params }: RouteContext) {
       update.info_bloques = body.info_bloques
     }
 
-    if (Object.keys(update).length === 0) {
+    const replaceContent = body.replaceContent === true
+    const archivos = Array.isArray(body.archivos) ? (body.archivos as UploadedArchivoInput[]) : []
+
+    if (replaceContent && archivos.length > 0) {
+      await applyCloudinaryContentUpdate(
+        totem,
+        update,
+        archivos,
+        body.mostrarDesde,
+        body.mostrarHasta
+      )
+    }
+
+    if (Object.keys(update).length === 0 && !body.faqPdf) {
       return NextResponse.json(
         { error: "No hay campos válidos para actualizar" },
         { status: 400 }
       )
     }
 
-    const updated = await Totem.findByIdAndUpdate(id, update, {
-      returnDocument: "after",
-      runValidators: true,
-    })
+    const updated = await Totem.findByIdAndUpdate(
+      id,
+      Object.keys(update).length > 0 ? update : { nombre: totem.nombre },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      }
+    )
+
+    if (body.faqPdf?.url && body.faqPdf.publicId) {
+      try {
+        await replaceTotemFaqFromCloudinary(
+          id,
+          update.nombre || totem.nombre,
+          body.faqPdf as UploadedPdfInput
+        )
+      } catch (pdfError) {
+        console.error("Error procesando PDF Cloudinary:", pdfError)
+      }
+    }
 
     return NextResponse.json(updated)
   } catch (error) {
@@ -222,16 +283,15 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     }
 
     const archivos = totem.contenido?.archivos ?? []
+    await deleteTotemContents(archivos)
 
-    for (const archivo of archivos) {
-      if (!archivo.contentId) continue
-
-      const content = await Content.findById(archivo.contentId)
-      if (content?.fileId) {
-        await eliminarArchivoGridFS(content.fileId)
+    const faqs = await Faq.find({ totemId: id })
+    for (const faq of faqs) {
+      if (faq.documentId) {
+        await DocumentModel.findByIdAndDelete(faq.documentId)
       }
-      await Content.findByIdAndDelete(archivo.contentId)
     }
+    await Faq.deleteMany({ totemId: id })
 
     await Totem.findByIdAndDelete(id)
 

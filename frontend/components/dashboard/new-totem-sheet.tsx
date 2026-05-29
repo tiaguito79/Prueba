@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { TotemPreviewDialog } from "./totem-preview-dialog"
+import { uploadFileToCloudinary, uploadTemplateMedia } from "@/lib/cloudinary-client"
 
 const templates = [
   { id: "clasica", name: "Plantilla Clásica", color: "bg-emerald-600", req: { images: 3, videos: 1 } },
@@ -57,25 +58,6 @@ const sedes = [
 ]
 
 type Estado = "Activo" | "Inactivo" | "En Mantenimiento"
-
-/** Límite de Vercel (Hobby) para el body de una petición serverless */
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
-
-function getTotalUploadBytes(
-  imagenes: Record<number, File | null>,
-  videos: Record<number, File | null>,
-  faqPdf: File | null
-) {
-  let total = 0
-  Object.values(imagenes).forEach((f) => {
-    if (f) total += f.size
-  })
-  Object.values(videos).forEach((f) => {
-    if (f) total += f.size
-  })
-  if (faqPdf) total += faqPdf.size
-  return total
-}
 
 interface NewTotemSheetProps {
   open: boolean
@@ -251,54 +233,55 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
       return
     }
 
-    const totalBytes = getTotalUploadBytes(imagenes, videos, faqPdf)
-    if (totalBytes > MAX_UPLOAD_BYTES) {
-      const mb = (totalBytes / (1024 * 1024)).toFixed(1)
-      toast.error(
-        `Los archivos pesan ${mb} MB. En producción el máximo es 4 MB. Usa imágenes más livianas o un video más corto.`
-      )
-      return
-    }
-
     setIsSubmitting(true)
 
     try {
       const token = localStorage.getItem("token")
-      const formData = new FormData()
+      if (!selectedTemplateObj) return
 
-      formData.append("nombre", nombre)
-      formData.append("totem_id", `TOTEM-${Math.floor(1000 + Math.random() * 9000)}`)
-      formData.append("campus_id", selectedSede)
-      formData.append("plantilla", selectedTemplate)
-      formData.append("estado", selectedEstado)
-      formData.append("usuario", credentials.username)
-      formData.append("contraseña", credentials.password)
-      formData.append("mostrarDesde", fechaInicioContenido)
-      formData.append("mostrarHasta", fechaFinContenido)
+      toast.info("Subiendo archivos a Cloudinary...")
 
-      Object.entries(imagenes).forEach(([index, file]) => {
-        if (file) formData.append(`imagen${index}`, file)
-      })
+      const archivos = await uploadTemplateMedia(
+        imagenes,
+        videos,
+        selectedTemplateObj.req.images,
+        selectedTemplateObj.req.videos,
+        (message) => toast.info(message)
+      )
 
-      Object.entries(videos).forEach(([index, file]) => {
-        if (file) formData.append(`video${index}`, file)
-      })
-
+      let faqPdfPayload = null
       if (faqPdf) {
-        formData.append("faqPdf", faqPdf)
+        toast.info("Subiendo PDF de FAQ...")
+        const uploadedPdf = await uploadFileToCloudinary(faqPdf, "raw")
+        faqPdfPayload = {
+          url: uploadedPdf.url,
+          publicId: uploadedPdf.publicId,
+          name: faqPdf.name,
+        }
       }
 
       const bloquesValidos = infoBloques.filter((b) => b.titulo.trim() && b.contenido.trim())
-      if (bloquesValidos.length > 0) {
-        formData.append("info_bloques", JSON.stringify(bloquesValidos))
-      }
 
       const response = await fetch("/api/totems", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: formData,
+        body: JSON.stringify({
+          nombre,
+          totem_id: `TOTEM-${Math.floor(1000 + Math.random() * 9000)}`,
+          campus_id: selectedSede,
+          plantilla: selectedTemplate,
+          estado: selectedEstado,
+          usuario: credentials.username,
+          contraseña: credentials.password,
+          mostrarDesde: fechaInicioContenido,
+          mostrarHasta: fechaFinContenido,
+          archivos,
+          faqPdf: faqPdfPayload,
+          info_bloques: bloquesValidos.length > 0 ? bloquesValidos : undefined,
+        }),
       })
 
       if (!response.ok) {
@@ -326,7 +309,9 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
       onOpenChange(false)
     } catch (error) {
       console.error("Error en la petición:", error)
-      toast.error("Error de conexión al crear el tótem.")
+      toast.error(
+        error instanceof Error ? error.message : "Error de conexión al crear el tótem."
+      )
     } finally {
       setIsSubmitting(false)
     }

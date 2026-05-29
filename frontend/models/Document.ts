@@ -4,7 +4,9 @@ const DocumentSchema = new Schema(
   {
     name: { type: String, required: true },
     type: { type: String, default: "faq_pdf" },
-    fileId: { type: Schema.Types.ObjectId, required: true },
+    fileId: { type: Schema.Types.ObjectId, required: false },
+    cloudinaryPublicId: { type: String },
+    fileUrl: { type: String },
     mimeType: { type: String, default: "application/pdf" },
     uploadedBy: { type: Schema.Types.ObjectId, ref: "admins", default: null },
     extractedText: { type: String, default: "" },

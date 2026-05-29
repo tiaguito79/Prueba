@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import mongoose from "mongoose"
 import { GridFSBucket } from "mongodb"
 import connectDB from "@/lib/mongodb"
+import { AuthError, requireAuth } from "@/lib/auth.server"
 import { eliminarArchivoGridFS, subirPdfAGridFS } from "@/lib/gridfs"
 import { extractTextFromPdfBuffer, parseFaqText } from "@/lib/pdf-service"
 import {
@@ -67,6 +68,7 @@ async function applyCloudinaryContentUpdate(
 
 export async function PUT(request: Request, { params }: RouteContext) {
   try {
+    await requireAuth(request)
     await connectDB()
     const { id } = await params
 
@@ -261,6 +263,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     return NextResponse.json(updated)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error("Error PUT totem:", error)
     const message =
       error instanceof Error ? error.message : "Error al actualizar el tótem"
@@ -268,8 +273,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
+export async function DELETE(request: Request, { params }: RouteContext) {
   try {
+    await requireAuth(request)
     await connectDB()
     const { id } = await params
 
@@ -297,6 +303,9 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
 
     return NextResponse.json({ message: "Tótem eliminado correctamente" })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error("Error DELETE totem:", error)
     const message =
       error instanceof Error ? error.message : "Error al eliminar el tótem"

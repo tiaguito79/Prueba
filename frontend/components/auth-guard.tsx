@@ -91,18 +91,23 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const tokenGuardado = localStorage.getItem("token")
 
     if (!tokenGuardado) {
-      router.replace("/login")
+      fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+        router.replace("/login")
+      })
       return
     }
 
     fetch("/api/auth/verify", {
+      credentials: "include",
       headers: { Authorization: `Bearer ${tokenGuardado}` },
     })
       .then((res) => {
         if (!res.ok) {
           localStorage.removeItem("token")
           localStorage.removeItem("admin")
-          router.replace("/login")
+          fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+            router.replace("/login")
+          })
         } else {
           setChecking(false)
         }
@@ -110,7 +115,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       .catch(() => {
         localStorage.removeItem("token")
         localStorage.removeItem("admin")
-        router.replace("/login")
+        fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+          router.replace("/login")
+        })
       })
   }, [router])
 

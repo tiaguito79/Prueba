@@ -44,9 +44,14 @@ export function Header() {
     }
   }, [])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem("token")
     localStorage.removeItem("admin")
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      // ignore
+    }
     router.replace("/login")
   }
 

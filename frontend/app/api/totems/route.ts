@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import mongoose from "mongoose"
 import { GridFSBucket } from "mongodb"
 import connectDB from "@/lib/mongodb"
+import { AuthError, requireAuth } from "@/lib/auth.server"
 import { subirPdfAGridFS } from "@/lib/gridfs"
 import { extractTextFromPdfBuffer, parseFaqText } from "@/lib/pdf-service"
 import {
@@ -103,8 +104,9 @@ async function createTotemFromCloudinary(body: {
   return newTotem
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    await requireAuth(request)
     await connectDB()
 
     const totems = await Totem.find({})
@@ -113,6 +115,9 @@ export async function GET() {
 
     return NextResponse.json(totems)
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error("Error GET:", error)
     return NextResponse.json(
       { error: "Error al obtener los tótems" },
@@ -123,6 +128,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    await requireAuth(request)
     await connectDB()
 
     if (isJsonRequest(request)) {
@@ -248,6 +254,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newTotem, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     console.error("Error POST:", error)
     const message =
       error instanceof Error ? error.message : "Error al crear el tótem"

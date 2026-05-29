@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server"
-import jwt from "jsonwebtoken"
+import { AuthError, requireAuth } from "@/lib/auth.server"
 
 export const runtime = "nodejs"
 
 export async function GET(request: Request) {
-  const jwtSecret = process.env.JWT_SECRET
-  if (!jwtSecret) {
-    return NextResponse.json({ valid: false }, { status: 500 })
-  }
-
-  const authHeader = request.headers.get("authorization")
-  const token = authHeader?.replace("Bearer ", "")
-
-  if (!token) {
-    return NextResponse.json({ valid: false }, { status: 401 })
-  }
-
   try {
-    const decoded = jwt.verify(token, jwtSecret)
-    return NextResponse.json({ valid: true, admin: decoded })
-  } catch {
-    return NextResponse.json({ valid: false }, { status: 401 })
+    const admin = await requireAuth(request)
+    return NextResponse.json({ valid: true, admin })
+  } catch (error) {
+    const status = error instanceof AuthError ? error.status : 401
+    return NextResponse.json({ valid: false }, { status })
   }
 }

@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import connectDB from "@/lib/mongodb"
 import Admin from "@/models/Admin"
+import { AUTH_COOKIE_NAME } from "@/lib/auth.constants"
+import { authCookieOptions } from "@/lib/auth.server"
 
 export const runtime = "nodejs"
 
@@ -114,7 +116,12 @@ export async function POST(request: Request) {
       { expiresIn: process.env.JWT_EXPIRES_IN || "2h" }
     )
 
-    return NextResponse.json({
+    const expiresIn = process.env.JWT_EXPIRES_IN || "2h"
+    const maxAgeSeconds = expiresIn.endsWith("h")
+      ? parseInt(expiresIn, 10) * 60 * 60
+      : 2 * 60 * 60
+
+    const response = NextResponse.json({
       message: "Login exitoso.",
       token,
       admin: {
@@ -125,6 +132,9 @@ export async function POST(request: Request) {
         rol: admin.rol,
       },
     })
+
+    response.cookies.set(AUTH_COOKIE_NAME, token, authCookieOptions(maxAgeSeconds))
+    return response
   } catch (error) {
     console.error("Error en login:", error)
     const msg = error instanceof Error ? error.message : String(error)

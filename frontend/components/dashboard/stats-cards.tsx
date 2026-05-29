@@ -49,10 +49,12 @@ export function StatsCards({ totems = [], isLoading = false }: { totems: any[]; 
       let total = 0
       for (const totem of totems) {
         try {
+          if (!totem.id) continue
           const res = await fetch(`/api/faqs/totem/${totem.id}`)
           if (res.ok) {
             const data = await res.json()
-            if (data && !data.error) total += 1
+            if (data?.hasFaq === false) continue
+            if (data && !data.error && (data.items?.length > 0 || data._id)) total += 1
           }
         } catch {
           // skip

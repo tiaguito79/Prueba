@@ -10,6 +10,7 @@ import DocumentModel from "@/models/Document"
 import Faq from "@/models/Faq"
 
 export const runtime = "nodejs"
+export const maxDuration = 60
 
 async function subirArchivoAGridFS(file: File, nombre: string) {
   const db = mongoose.connection.db
@@ -182,9 +183,20 @@ export async function POST(request: Request) {
     return NextResponse.json(newTotem, { status: 201 })
   } catch (error) {
     console.error("Error POST:", error)
+    const message =
+      error instanceof Error ? error.message : "Error al crear el tótem"
+    const isDuplicate =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code: number }).code === 11000
     return NextResponse.json(
-      { error: "Error al crear el tótem" },
-      { status: 500 }
+      {
+        error: isDuplicate
+          ? "Ya existe un tótem con ese ID. Intenta de nuevo."
+          : message,
+      },
+      { status: isDuplicate ? 409 : 500 }
     )
   }
 }

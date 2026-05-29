@@ -18,10 +18,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     }).sort({ createdAt: -1 })
 
     if (!faq) {
-      return NextResponse.json(
-        { message: "No hay FAQ activa para este tótem" },
-        { status: 404 }
-      )
+      return NextResponse.json({ hasFaq: false, items: [] })
     }
 
     return NextResponse.json(faq)

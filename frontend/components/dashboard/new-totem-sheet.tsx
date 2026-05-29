@@ -58,6 +58,25 @@ const sedes = [
 
 type Estado = "Activo" | "Inactivo" | "En Mantenimiento"
 
+/** Límite de Vercel (Hobby) para el body de una petición serverless */
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
+function getTotalUploadBytes(
+  imagenes: Record<number, File | null>,
+  videos: Record<number, File | null>,
+  faqPdf: File | null
+) {
+  let total = 0
+  Object.values(imagenes).forEach((f) => {
+    if (f) total += f.size
+  })
+  Object.values(videos).forEach((f) => {
+    if (f) total += f.size
+  })
+  if (faqPdf) total += faqPdf.size
+  return total
+}
+
 interface NewTotemSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -232,6 +251,15 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
       return
     }
 
+    const totalBytes = getTotalUploadBytes(imagenes, videos, faqPdf)
+    if (totalBytes > MAX_UPLOAD_BYTES) {
+      const mb = (totalBytes / (1024 * 1024)).toFixed(1)
+      toast.error(
+        `Los archivos pesan ${mb} MB. En producción el máximo es 4 MB. Usa imágenes más livianas o un video más corto.`
+      )
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -274,9 +302,21 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error("Error del servidor:", errorData)
-        toast.error("Error al crear el tótem.")
+        let message = "Error al crear el tótem."
+        const text = await response.text().catch(() => "")
+        try {
+          const errorData = JSON.parse(text) as { error?: string }
+          if (errorData?.error) message = String(errorData.error)
+        } catch {
+          if (response.status === 413 || text.includes("Request Entity Too Large")) {
+            message =
+              "Los archivos son demasiado grandes para el servidor (máx. 4 MB). Reduce el tamaño de imágenes o video."
+          } else if (text && !text.startsWith("<")) {
+            message = text.slice(0, 200)
+          }
+        }
+        console.error("Error del servidor:", response.status, message)
+        toast.error(message)
         return
       }
 

@@ -17,7 +17,7 @@ export function getCloudinaryConfig() {
   return { cloudName, apiKey, apiSecret, folder }
 }
 
-export function createUploadSignature(resourceType: "image" | "video" | "raw") {
+export function createUploadSignature(_resourceType: "image" | "video" | "raw") {
   const { apiSecret, folder } = getCloudinaryConfig()
   const timestamp = Math.round(Date.now() / 1000)
   const params: Record<string, string | number> = {
@@ -25,10 +25,8 @@ export function createUploadSignature(resourceType: "image" | "video" | "raw") {
     folder,
   }
 
-  if (resourceType === "raw") {
-    params.resource_type = "raw"
-  }
-
+  // Solo firmar params que el cliente envía en el FormData (folder + timestamp).
+  // El tipo de recurso va en la URL (/image|video|raw/upload), no en la firma.
   const signature = cloudinary.utils.api_sign_request(params, apiSecret)
 
   return { signature, timestamp, folder, params }

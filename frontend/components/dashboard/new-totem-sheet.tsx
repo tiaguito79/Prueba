@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { TotemPreviewDialog } from "./totem-preview-dialog"
 import { uploadFileToCloudinary, uploadTemplateMedia } from "@/lib/cloudinary-client"
+import { getSuggestedNames, isPresetNameForOtherSede } from "@/lib/totem-name-presets"
 
 const templates = [
   { id: "clasica", name: "Plantilla Clásica", color: "bg-emerald-600", req: { images: 3, videos: 1 } },
@@ -92,8 +93,10 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [imagePreviews, setImagePreviews] = useState<Array<string | null>>([])
   const [videoPreviews, setVideoPreviews] = useState<Array<string | null>>([])
+  const [existingTotemNames, setExistingTotemNames] = useState<string[]>([])
 
   const selectedTemplateObj = templates.find((t) => t.id === selectedTemplate)
+  const nameSuggestions = getSuggestedNames(existingTotemNames, selectedSede)
 
   const generarCredenciales = () => {
     const randomId = Math.random().toString(36).substring(2, 6).toUpperCase()
@@ -188,8 +191,30 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
       setShowPassword(false)
       setCopiedUser(false)
       setCopiedPassword(false)
+      setExistingTotemNames([])
+
+      const token = localStorage.getItem("token")
+      fetch("/api/totems", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setExistingTotemNames(
+              data.map((item: { nombre?: string }) => item.nombre).filter(Boolean) as string[]
+            )
+          }
+        })
+        .catch(() => setExistingTotemNames([]))
     }
   }, [open])
+
+  useEffect(() => {
+    if (!selectedSede) return
+    setNombre((prev) =>
+      prev && isPresetNameForOtherSede(prev, selectedSede) ? "" : prev
+    )
+  }, [selectedSede])
 
   const handleCopy = (text: string, type: "user" | "password") => {
     navigator.clipboard.writeText(text)
@@ -360,18 +385,6 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
           <div className="py-6 space-y-6">
             <div className="space-y-2">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Nombre del Tótem *
-              </Label>
-              <Input
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                placeholder="Ej: Tótem Lobby Central"
-                className="bg-muted/50 border-border"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Sede *
               </Label>
               <Select value={selectedSede} onValueChange={setSelectedSede}>
@@ -386,6 +399,67 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Nombre del Tótem *
+              </Label>
+              <Input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Ej: TOTEM CAMPUS TIQUIPAYA 01"
+                className="bg-muted/50 border-border"
+              />
+              {selectedSede ? (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs text-muted-foreground">
+                    Plantillas rápidas para{" "}
+                    <span className="font-medium text-foreground">
+                      {sedes.find((s) => s.id === selectedSede)?.name}
+                    </span>{" "}
+                    — numeración automática (01, 02, 03…)
+                  </p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {nameSuggestions.map((preset) => {
+                      const isSelected = nombre.trim().toUpperCase() === preset.suggestedName
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setNombre(preset.suggestedName)}
+                          className={cn(
+                            "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-all",
+                            isSelected
+                              ? "border-emerald-500 bg-emerald-500/10"
+                              : "border-border bg-muted/30 hover:border-muted-foreground/50"
+                          )}
+                        >
+                          <span className="text-sm font-medium text-foreground">
+                            {preset.label}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "shrink-0 font-mono text-xs",
+                              isSelected && "border-emerald-500 text-emerald-400"
+                            )}
+                          >
+                            {preset.suggestedName}
+                          </Badge>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    También podés escribir un nombre personalizado en el campo de arriba.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground pt-1">
+                  Seleccioná una sede para ver las plantillas de nombre rápidas.
+                </p>
+              )}
             </div>
 
             <div className="space-y-3">

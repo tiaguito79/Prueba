@@ -40,7 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { TotemPreviewDialog } from "./totem-preview-dialog"
-import { TotemNamePresetsManager } from "./totem-name-presets-manager"
+import { TotemNamePresetsPanel } from "./totem-name-presets-panel"
 import { uploadFileToCloudinary, uploadTemplateMedia } from "@/lib/cloudinary-client"
 import {
   buildSuggestedNames,
@@ -428,61 +428,15 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                 className="bg-muted/50 border-border"
               />
               {selectedSede ? (
-                <div className="space-y-3 pt-1">
-                  <p className="text-xs text-muted-foreground">
-                    Plantillas rápidas para{" "}
-                    <span className="font-medium text-foreground">
-                      {sedes.find((s) => s.id === selectedSede)?.name}
-                    </span>
-                  </p>
-                  {nameSuggestions.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-2">
-                      {nameSuggestions.map((preset) => {
-                        const isSelected =
-                          nombre.trim().toUpperCase() === preset.suggestedName.toUpperCase()
-                        return (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => setNombre(preset.suggestedName)}
-                            className={cn(
-                              "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-all",
-                              isSelected
-                                ? "border-emerald-500 bg-emerald-500/10"
-                                : "border-border bg-muted/30 hover:border-muted-foreground/50"
-                            )}
-                          >
-                            <span className="text-sm font-medium text-foreground">
-                              {preset.label}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "shrink-0 font-mono text-xs",
-                                isSelected && "border-emerald-500 text-emerald-400"
-                              )}
-                            >
-                              {preset.suggestedName}
-                            </Badge>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No hay plantillas para esta sede. Agregá una abajo.
-                    </p>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">
-                    También podés escribir un nombre personalizado en el campo de arriba.
-                  </p>
-                  <TotemNamePresetsManager
-                    sedeId={selectedSede}
-                    sedeName={sedes.find((s) => s.id === selectedSede)?.name || ""}
-                    presets={namePresets}
-                    onPresetsChange={setNamePresets}
-                  />
-                </div>
+                <TotemNamePresetsPanel
+                  sedeId={selectedSede}
+                  sedeName={sedes.find((s) => s.id === selectedSede)?.name || ""}
+                  presets={namePresets}
+                  suggestions={nameSuggestions}
+                  selectedName={nombre}
+                  onSelectName={setNombre}
+                  onPresetsChange={setNamePresets}
+                />
               ) : (
                 <p className="text-xs text-muted-foreground pt-1">
                   Seleccioná una sede para ver las plantillas de nombre rápidas.

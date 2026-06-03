@@ -40,8 +40,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { TotemPreviewDialog } from "./totem-preview-dialog"
+import { TotemNamePresetsManager } from "./totem-name-presets-manager"
 import { uploadFileToCloudinary, uploadTemplateMedia } from "@/lib/cloudinary-client"
-import { getSuggestedNames, isPresetNameForOtherSede } from "@/lib/totem-name-presets"
+import {
+  buildSuggestedNames,
+  isPresetNameForOtherSede,
+  type TotemNamePresetItem,
+} from "@/lib/totem-name-presets"
 
 const templates = [
   { id: "clasica", name: "Plantilla Clásica", color: "bg-emerald-600", req: { images: 3, videos: 1 } },
@@ -94,9 +99,10 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
   const [imagePreviews, setImagePreviews] = useState<Array<string | null>>([])
   const [videoPreviews, setVideoPreviews] = useState<Array<string | null>>([])
   const [existingTotemNames, setExistingTotemNames] = useState<string[]>([])
+  const [namePresets, setNamePresets] = useState<TotemNamePresetItem[]>([])
 
   const selectedTemplateObj = templates.find((t) => t.id === selectedTemplate)
-  const nameSuggestions = getSuggestedNames(existingTotemNames, selectedSede)
+  const nameSuggestions = buildSuggestedNames(namePresets, existingTotemNames, selectedSede)
 
   const generarCredenciales = () => {
     const randomId = Math.random().toString(36).substring(2, 6).toUpperCase()
@@ -192,11 +198,12 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
       setCopiedUser(false)
       setCopiedPassword(false)
       setExistingTotemNames([])
+      setNamePresets([])
 
       const token = localStorage.getItem("token")
-      fetch("/api/totems", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+      fetch("/api/totems", { headers })
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
@@ -206,15 +213,24 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
           }
         })
         .catch(() => setExistingTotemNames([]))
+
+      fetch("/api/totem-name-presets", { headers })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setNamePresets(data)
+          }
+        })
+        .catch(() => setNamePresets([]))
     }
   }, [open])
 
   useEffect(() => {
     if (!selectedSede) return
     setNombre((prev) =>
-      prev && isPresetNameForOtherSede(prev, selectedSede) ? "" : prev
+      prev && isPresetNameForOtherSede(prev, selectedSede, namePresets) ? "" : prev
     )
-  }, [selectedSede])
+  }, [selectedSede, namePresets])
 
   const handleCopy = (text: string, type: "user" | "password") => {
     navigator.clipboard.writeText(text)
@@ -412,48 +428,60 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                 className="bg-muted/50 border-border"
               />
               {selectedSede ? (
-                <div className="space-y-2 pt-1">
+                <div className="space-y-3 pt-1">
                   <p className="text-xs text-muted-foreground">
                     Plantillas rápidas para{" "}
                     <span className="font-medium text-foreground">
                       {sedes.find((s) => s.id === selectedSede)?.name}
-                    </span>{" "}
-                    — numeración automática (01, 02, 03…)
+                    </span>
                   </p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {nameSuggestions.map((preset) => {
-                      const isSelected = nombre.trim().toUpperCase() === preset.suggestedName
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => setNombre(preset.suggestedName)}
-                          className={cn(
-                            "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-all",
-                            isSelected
-                              ? "border-emerald-500 bg-emerald-500/10"
-                              : "border-border bg-muted/30 hover:border-muted-foreground/50"
-                          )}
-                        >
-                          <span className="text-sm font-medium text-foreground">
-                            {preset.label}
-                          </span>
-                          <Badge
-                            variant="outline"
+                  {nameSuggestions.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2">
+                      {nameSuggestions.map((preset) => {
+                        const isSelected =
+                          nombre.trim().toUpperCase() === preset.suggestedName.toUpperCase()
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => setNombre(preset.suggestedName)}
                             className={cn(
-                              "shrink-0 font-mono text-xs",
-                              isSelected && "border-emerald-500 text-emerald-400"
+                              "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-all",
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-500/10"
+                                : "border-border bg-muted/30 hover:border-muted-foreground/50"
                             )}
                           >
-                            {preset.suggestedName}
-                          </Badge>
-                        </button>
-                      )
-                    })}
-                  </div>
+                            <span className="text-sm font-medium text-foreground">
+                              {preset.label}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "shrink-0 font-mono text-xs",
+                                isSelected && "border-emerald-500 text-emerald-400"
+                              )}
+                            >
+                              {preset.suggestedName}
+                            </Badge>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No hay plantillas para esta sede. Agregá una abajo.
+                    </p>
+                  )}
                   <p className="text-[11px] text-muted-foreground">
                     También podés escribir un nombre personalizado en el campo de arriba.
                   </p>
+                  <TotemNamePresetsManager
+                    sedeId={selectedSede}
+                    sedeName={sedes.find((s) => s.id === selectedSede)?.name || ""}
+                    presets={namePresets}
+                    onPresetsChange={setNamePresets}
+                  />
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground pt-1">

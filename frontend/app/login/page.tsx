@@ -319,7 +319,7 @@ export default function LoginPage() {
               </span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-400">
-              Ingresá tu correo y te enviaremos tus credenciales.
+              Ingresá tu correo y te enviaremos un enlace para restablecer tu contraseña.
             </DialogDescription>
           </DialogHeader>
 
@@ -377,7 +377,7 @@ export default function LoginPage() {
                     Enviando...
                   </>
                 ) : (
-                  "Enviar credenciales →"
+                  "Enviar enlace →"
                 )}
               </Button>
             ) : (

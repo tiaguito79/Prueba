@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server"
 import crypto from "crypto"
-import nodemailer from "nodemailer"
 import connectDB from "@/lib/mongodb"
 import Admin from "@/models/Admin"
+import { getEmailConfig, getFrontendUrl, sendMail } from "@/lib/email"
 
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
-  const emailUser = process.env.EMAIL_USER
-  const emailPass = process.env.EMAIL_PASS
-
-  if (!emailUser || !emailPass) {
+  if (!getEmailConfig()) {
     return NextResponse.json(
-      { message: "Faltan EMAIL_USER o EMAIL_PASS en .env.local" },
-      { status: 500 }
+      {
+        message:
+          "El envío de correos no está configurado en el servidor. Contacta al administrador.",
+      },
+      { status: 503 }
     )
   }
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const genericMessage =
-    "Si el correo está registrado, recibirás un mensaje para restablecer tu contraseña."
+    "Si el correo está registrado, recibirás un enlace para restablecer tu contraseña."
 
   try {
     await connectDB()
@@ -51,19 +51,9 @@ export async function POST(request: Request) {
     admin.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000)
     await admin.save()
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000"
-    const resetLink = `${frontendUrl}/reset-password/${rawToken}`
+    const resetLink = `${getFrontendUrl()}/reset-password/${rawToken}`
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    })
-
-    await transporter.sendMail({
-      from: `"TOTEM Management" <${emailUser}>`,
+    await sendMail({
       to: admin.correo_electronico,
       subject: "Restablecimiento de contraseña — TOTEM",
       html: `
@@ -85,6 +75,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: genericMessage })
   } catch (error) {
     console.error("Error en recuperación:", error)
+
+    const err = error as { code?: string; message?: string }
+    if (err?.message === "EMAIL_NOT_CONFIGURED") {
+      return NextResponse.json(
+        { message: "El envío de correos no está configurado en el servidor." },
+        { status: 503 }
+      )
+    }
+
+    if (err?.code === "EAUTH" || err?.code === "ESOCKET") {
+      return NextResponse.json(
+        {
+          message:
+            "No se pudo enviar el correo. Verifica EMAIL_USER y EMAIL_PASS (contraseña de aplicación de Gmail) en Vercel.",
+        },
+        { status: 502 }
+      )
+    }
+
     return NextResponse.json(
       { message: "Error al procesar la solicitud. Intenta más tarde." },
       { status: 500 }

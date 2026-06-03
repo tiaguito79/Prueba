@@ -544,7 +544,7 @@ export function EditTotemSheet({
                     return (
                       <div
                         key={`img-${index}`}
-                        className="relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-dashed border-border hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group overflow-hidden min-h-[120px]"
+                        className="relative flex flex-col items-center justify-center gap-2 p-4 h-[140px] rounded-lg border border-dashed border-border hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group overflow-hidden"
                       >
                         <Input
                           type="file"
@@ -558,7 +558,7 @@ export function EditTotemSheet({
                           <img
                             src={preview}
                             alt={`Imagen ${index}`}
-                            className="absolute inset-0 h-full w-full object-cover rounded-lg"
+                            className="absolute inset-0 h-full w-full object-cover object-center rounded-lg"
                           />
                         ) : (
                           <ImageIconFile className="w-6 h-6 text-muted-foreground group-hover:text-cyan-400 transition-colors" />
@@ -586,7 +586,7 @@ export function EditTotemSheet({
                     return (
                       <div
                         key={`vid-${index}`}
-                        className="relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-dashed border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group overflow-hidden min-h-[120px]"
+                        className="relative flex flex-col items-center justify-center gap-2 p-4 h-[140px] rounded-lg border border-dashed border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group overflow-hidden"
                       >
                         <Input
                           type="file"
@@ -599,7 +599,7 @@ export function EditTotemSheet({
                         {preview ? (
                           <video
                             src={preview}
-                            className="absolute inset-0 h-full w-full object-cover rounded-lg"
+                            className="absolute inset-0 h-full w-full object-cover object-center rounded-lg"
                             muted
                             playsInline
                           />

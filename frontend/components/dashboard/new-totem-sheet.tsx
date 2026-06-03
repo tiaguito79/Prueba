@@ -543,7 +543,7 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                     return (
                       <div
                         key={`img-${index}`}
-                        className="relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-dashed border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group overflow-hidden"
+                        className="relative flex flex-col items-center justify-center gap-2 p-4 h-[140px] rounded-lg border border-dashed border-border hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group overflow-hidden"
                       >
                         <Input
                           type="file"
@@ -555,15 +555,15 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                           <img
                             src={imagePreviews[index - 1]!}
                             alt={`Imagen cargada ${index}`}
-                            className="absolute inset-0 h-full w-full object-cover"
+                            className="absolute inset-0 h-full w-full object-cover object-center"
                           />
                         ) : (
-                          <ImageIconFile className="w-6 h-6 text-muted-foreground group-hover:text-emerald-400 transition-colors" />
+                          <ImageIconFile className="w-6 h-6 text-muted-foreground group-hover:text-emerald-400 transition-colors z-[1]" />
                         )}
-                        <span className="text-sm text-foreground text-center">
+                        <span className="relative z-[2] text-sm text-foreground text-center drop-shadow-sm">
                           {renderFileName(file, `Imagen Carrusel ${index}`)}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="relative z-[2] text-xs text-muted-foreground drop-shadow-sm">
                           {file ? "Archivo seleccionado" : "Clic para subir"}
                         </span>
                       </div>
@@ -577,7 +577,7 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                     return (
                       <div
                         key={`vid-${index}`}
-                        className="relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border border-dashed border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group overflow-hidden"
+                        className="relative flex flex-col items-center justify-center gap-2 p-4 h-[140px] rounded-lg border border-dashed border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group overflow-hidden"
                       >
                         <Input
                           type="file"
@@ -588,17 +588,17 @@ export function NewTotemSheet({ open, onOpenChange, onSave }: NewTotemSheetProps
                         {videoPreviews[index - 1] ? (
                           <video
                             src={videoPreviews[index - 1]!}
-                            className="absolute inset-0 h-full w-full object-cover"
+                            className="absolute inset-0 h-full w-full object-cover object-center"
                             muted
                             playsInline
                           />
                         ) : (
-                          <VideoIconFile className="w-6 h-6 text-muted-foreground group-hover:text-purple-400 transition-colors" />
+                          <VideoIconFile className="w-6 h-6 text-muted-foreground group-hover:text-purple-400 transition-colors z-[1]" />
                         )}
-                        <span className="text-sm text-foreground text-center">
+                        <span className="relative z-[2] text-sm text-foreground text-center drop-shadow-sm">
                           {renderFileName(file, `Video Principal ${index}`)}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="relative z-[2] text-xs text-muted-foreground drop-shadow-sm">
                           {file ? "Archivo seleccionado" : "Clic para subir"}
                         </span>
                       </div>

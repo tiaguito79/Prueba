@@ -39,8 +39,7 @@ export function TotemPreviewDialog({
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [videoPlaying, setVideoPlaying] = useState<Record<number, boolean>>({})
 
-  const validImages = imagePreviews.filter(Boolean) as string[]
-  const validVideos = videoPreviews.filter(Boolean) as string[]
+  const carouselImages = imagePreviews.filter(Boolean) as string[]
 
   useEffect(() => {
     setCarouselIndex(0)
@@ -48,20 +47,20 @@ export function TotemPreviewDialog({
   }, [open])
 
   useEffect(() => {
-    if (!open || validImages.length <= 1) return
+    if (!open || carouselImages.length <= 1) return
     const interval = setInterval(() => {
-      setCarouselIndex((prev) => (prev + 1) % validImages.length)
+      setCarouselIndex((prev) => (prev + 1) % carouselImages.length)
     }, 4000)
     return () => clearInterval(interval)
-  }, [open, validImages.length])
+  }, [open, carouselImages.length])
 
   const goPrev = useCallback(() => {
-    setCarouselIndex((prev) => (prev - 1 + validImages.length) % validImages.length)
-  }, [validImages.length])
+    setCarouselIndex((prev) => (prev - 1 + carouselImages.length) % carouselImages.length)
+  }, [carouselImages.length])
 
   const goNext = useCallback(() => {
-    setCarouselIndex((prev) => (prev + 1) % validImages.length)
-  }, [validImages.length])
+    setCarouselIndex((prev) => (prev + 1) % carouselImages.length)
+  }, [carouselImages.length])
 
   const toggleVideo = (index: number, videoEl: HTMLVideoElement | null) => {
     if (!videoEl) return
@@ -96,15 +95,11 @@ export function TotemPreviewDialog({
           <X className="w-4 h-4" />
         </button>
 
-        {/* Totem device frame */}
         <div className="flex flex-col items-center">
-          {/* Top bezel */}
           <div className="w-[340px] h-3 bg-gradient-to-b from-zinc-700 to-zinc-800 rounded-t-2xl" />
 
-          {/* Screen area */}
           <div className="w-[340px] bg-zinc-800 px-[6px] pb-[6px]">
             <div className="w-full h-[540px] bg-slate-950 rounded-sm overflow-hidden flex flex-col relative">
-              {/* Status bar */}
               <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800/50 shrink-0">
                 <span className="text-[10px] text-slate-400 font-medium">{timeStr}</span>
                 <div className="flex items-center gap-1">
@@ -114,12 +109,12 @@ export function TotemPreviewDialog({
                 <span className="text-[10px] text-slate-400 capitalize">{dateStr}</span>
               </div>
 
-              {/* Content area */}
-              <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {renderTemplateContent(
                   templateId,
-                  validImages,
-                  validVideos,
+                  imagePreviews,
+                  videoPreviews,
+                  carouselImages,
                   carouselIndex,
                   goPrev,
                   goNext,
@@ -128,14 +123,11 @@ export function TotemPreviewDialog({
                   infoBloques
                 )}
               </div>
-
             </div>
           </div>
 
-          {/* Bottom bezel */}
           <div className="w-[340px] h-4 bg-gradient-to-b from-zinc-800 to-zinc-700 rounded-b-2xl" />
 
-          {/* Stand */}
           <div className="w-[120px] h-16 bg-gradient-to-b from-zinc-700 via-zinc-600 to-zinc-700 rounded-b-lg relative">
             <div className="absolute inset-x-0 top-0 h-[1px] bg-zinc-500/50" />
           </div>
@@ -146,10 +138,48 @@ export function TotemPreviewDialog({
   )
 }
 
+/** Contenedor fijo: la imagen/video siempre llena el slot sin deformar la plantilla. */
+function MediaSlot({
+  src,
+  type = "image",
+  height,
+  className,
+  children,
+}: {
+  src: string
+  type?: "image" | "video"
+  height: string
+  className?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div className={cn("relative shrink-0 overflow-hidden bg-slate-900", height, className)}>
+      {type === "image" ? (
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          draggable={false}
+        />
+      ) : (
+        <video
+          src={src}
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          muted
+          playsInline
+          loop
+        />
+      )}
+      {children}
+    </div>
+  )
+}
+
 function renderTemplateContent(
   templateId: string | null,
-  images: string[],
-  videos: string[],
+  imageSlots: Array<string | null>,
+  videoSlots: Array<string | null>,
+  carouselImages: string[],
   carouselIndex: number,
   goPrev: () => void,
   goNext: () => void,
@@ -159,17 +189,73 @@ function renderTemplateContent(
 ) {
   switch (templateId) {
     case "directorio":
-      return <DirectorioLayout videos={videos} videoPlaying={videoPlaying} toggleVideo={toggleVideo} infoBloques={infoBloques} />
+      return (
+        <DirectorioLayout
+          videoSlots={videoSlots}
+          videoPlaying={videoPlaying}
+          toggleVideo={toggleVideo}
+          infoBloques={infoBloques}
+        />
+      )
     case "promocional":
-      return <PromocionalLayout images={images} videos={videos} videoPlaying={videoPlaying} toggleVideo={toggleVideo} infoBloques={infoBloques} />
+      return (
+        <PromocionalLayout
+          imageSlots={imageSlots}
+          videoSlots={videoSlots}
+          videoPlaying={videoPlaying}
+          toggleVideo={toggleVideo}
+          infoBloques={infoBloques}
+        />
+      )
     case "minimal":
-      return <MinimalLayout images={images} carouselIndex={carouselIndex} goPrev={goPrev} goNext={goNext} infoBloques={infoBloques} />
+      return (
+        <MinimalLayout
+          carouselImages={carouselImages}
+          carouselIndex={carouselIndex}
+          goPrev={goPrev}
+          goNext={goNext}
+          infoBloques={infoBloques}
+        />
+      )
     case "eventos":
-      return <EventosLayout images={images} videos={videos} carouselIndex={carouselIndex} goPrev={goPrev} goNext={goNext} videoPlaying={videoPlaying} toggleVideo={toggleVideo} infoBloques={infoBloques} />
+      return (
+        <EventosLayout
+          carouselImages={carouselImages}
+          videoSlots={videoSlots}
+          carouselIndex={carouselIndex}
+          goPrev={goPrev}
+          goNext={goNext}
+          videoPlaying={videoPlaying}
+          toggleVideo={toggleVideo}
+          infoBloques={infoBloques}
+        />
+      )
     case "corporativa":
-      return <CorporativaLayout images={images} videos={videos} carouselIndex={carouselIndex} goPrev={goPrev} goNext={goNext} videoPlaying={videoPlaying} toggleVideo={toggleVideo} infoBloques={infoBloques} />
+      return (
+        <CorporativaLayout
+          carouselImages={carouselImages}
+          videoSlots={videoSlots}
+          carouselIndex={carouselIndex}
+          goPrev={goPrev}
+          goNext={goNext}
+          videoPlaying={videoPlaying}
+          toggleVideo={toggleVideo}
+          infoBloques={infoBloques}
+        />
+      )
     default:
-      return <ClasicaLayout images={images} videos={videos} carouselIndex={carouselIndex} goPrev={goPrev} goNext={goNext} videoPlaying={videoPlaying} toggleVideo={toggleVideo} infoBloques={infoBloques} />
+      return (
+        <ClasicaLayout
+          carouselImages={carouselImages}
+          videoSlots={videoSlots}
+          carouselIndex={carouselIndex}
+          goPrev={goPrev}
+          goNext={goNext}
+          videoPlaying={videoPlaying}
+          toggleVideo={toggleVideo}
+          infoBloques={infoBloques}
+        />
+      )
   }
 }
 
@@ -188,34 +274,35 @@ function ImageCarousel({
 }) {
   if (images.length === 0) {
     return (
-      <div className={cn("bg-slate-800/50 flex items-center justify-center", height)}>
+      <div className={cn("bg-slate-800/50 flex items-center justify-center shrink-0", height)}>
         <span className="text-slate-600 text-xs">Sin imágenes</span>
       </div>
     )
   }
 
   return (
-    <div className={cn("relative group overflow-hidden", height)}>
-      <img
-        src={images[index % images.length]}
-        alt=""
-        className="w-full h-full object-cover transition-opacity duration-500"
-      />
+    <MediaSlot src={images[index % images.length]} height={height} className="group">
       {images.length > 1 && (
         <>
           <button
-            onClick={(e) => { e.stopPropagation(); onPrev() }}
-            className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation()
+              onPrev()
+            }}
+            className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onNext() }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation()
+              onNext()
+            }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
-          <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1">
+          <div className="absolute bottom-2 inset-x-0 z-10 flex justify-center gap-1">
             {images.map((_, i) => (
               <div
                 key={i}
@@ -228,7 +315,7 @@ function ImageCarousel({
           </div>
         </>
       )}
-    </div>
+    </MediaSlot>
   )
 }
 
@@ -247,7 +334,7 @@ function VideoPlayer({
 }) {
   return (
     <div
-      className={cn("relative group cursor-pointer overflow-hidden bg-black", height)}
+      className={cn("relative shrink-0 group cursor-pointer overflow-hidden bg-black", height)}
       onClick={(e) => {
         const video = (e.currentTarget as HTMLElement).querySelector("video")
         onToggle(index, video)
@@ -255,15 +342,17 @@ function VideoPlayer({
     >
       <video
         src={src}
-        className="w-full h-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover object-center"
         muted
         playsInline
         loop
       />
-      <div className={cn(
-        "absolute inset-0 flex items-center justify-center bg-black/30 transition-opacity",
-        playing ? "opacity-0 group-hover:opacity-100" : "opacity-100"
-      )}>
+      <div
+        className={cn(
+          "absolute inset-0 z-10 flex items-center justify-center bg-black/30 transition-opacity",
+          playing ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+        )}
+      >
         {playing ? (
           <Pause className="w-8 h-8 text-white drop-shadow-lg" />
         ) : (
@@ -283,7 +372,22 @@ function InfoBlock({ title, children }: { title: string; children: React.ReactNo
   )
 }
 
-/* ======================== Template Layouts ======================== */
+function TemplateLayout({
+  media,
+  infoBloques,
+}: {
+  media: React.ReactNode
+  infoBloques?: InfoBloque[]
+}) {
+  return (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="shrink-0 flex flex-col">{media}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <CustomInfoBlocks infoBloques={infoBloques} />
+      </div>
+    </div>
+  )
+}
 
 function CustomInfoBlocks({ infoBloques }: { infoBloques?: InfoBloque[] }) {
   if (!infoBloques || infoBloques.length === 0) {
@@ -313,118 +417,270 @@ function CustomInfoBlocks({ infoBloques }: { infoBloques?: InfoBloque[] }) {
 }
 
 function ClasicaLayout({
-  images, videos, carouselIndex, goPrev, goNext, videoPlaying, toggleVideo, infoBloques,
+  carouselImages,
+  videoSlots,
+  carouselIndex,
+  goPrev,
+  goNext,
+  videoPlaying,
+  toggleVideo,
+  infoBloques,
 }: {
-  images: string[]; videos: string[]; carouselIndex: number; goPrev: () => void; goNext: () => void; videoPlaying: Record<number, boolean>; toggleVideo: (i: number, el: HTMLVideoElement | null) => void; infoBloques?: InfoBloque[]
+  carouselImages: string[]
+  videoSlots: Array<string | null>
+  carouselIndex: number
+  goPrev: () => void
+  goNext: () => void
+  videoPlaying: Record<number, boolean>
+  toggleVideo: (i: number, el: HTMLVideoElement | null) => void
+  infoBloques?: InfoBloque[]
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      <ImageCarousel images={images} index={carouselIndex} onPrev={goPrev} onNext={goNext} height="h-[200px]" />
-      {videos[0] && (
-        <VideoPlayer src={videos[0]} index={0} playing={!!videoPlaying[0]} onToggle={toggleVideo} height="h-[140px]" />
-      )}
-      <CustomInfoBlocks infoBloques={infoBloques} />
-    </div>
+    <TemplateLayout
+      infoBloques={infoBloques}
+      media={
+        <>
+          <ImageCarousel
+            images={carouselImages}
+            index={carouselIndex}
+            onPrev={goPrev}
+            onNext={goNext}
+            height="h-[200px]"
+          />
+          {videoSlots[0] && (
+            <VideoPlayer
+              src={videoSlots[0]}
+              index={0}
+              playing={!!videoPlaying[0]}
+              onToggle={toggleVideo}
+              height="h-[140px]"
+            />
+          )}
+        </>
+      }
+    />
   )
 }
 
 function EventosLayout({
-  images, videos, carouselIndex, goPrev, goNext, videoPlaying, toggleVideo, infoBloques,
+  carouselImages,
+  videoSlots,
+  carouselIndex,
+  goPrev,
+  goNext,
+  videoPlaying,
+  toggleVideo,
+  infoBloques,
 }: {
-  images: string[]; videos: string[]; carouselIndex: number; goPrev: () => void; goNext: () => void; videoPlaying: Record<number, boolean>; toggleVideo: (i: number, el: HTMLVideoElement | null) => void; infoBloques?: InfoBloque[]
+  carouselImages: string[]
+  videoSlots: Array<string | null>
+  carouselIndex: number
+  goPrev: () => void
+  goNext: () => void
+  videoPlaying: Record<number, boolean>
+  toggleVideo: (i: number, el: HTMLVideoElement | null) => void
+  infoBloques?: InfoBloque[]
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      <ImageCarousel images={images} index={carouselIndex} onPrev={goPrev} onNext={goNext} height="h-[180px]" />
-      <CustomInfoBlocks infoBloques={infoBloques} />
-      {videos[0] && (
-        <VideoPlayer src={videos[0]} index={0} playing={!!videoPlaying[0]} onToggle={toggleVideo} height="h-[100px]" />
-      )}
-      {videos[1] && (
-        <VideoPlayer src={videos[1]} index={1} playing={!!videoPlaying[1]} onToggle={toggleVideo} height="h-[100px]" />
-      )}
-    </div>
+    <TemplateLayout
+      infoBloques={infoBloques}
+      media={
+        <>
+          <ImageCarousel
+            images={carouselImages}
+            index={carouselIndex}
+            onPrev={goPrev}
+            onNext={goNext}
+            height="h-[180px]"
+          />
+          {videoSlots[0] && (
+            <VideoPlayer
+              src={videoSlots[0]}
+              index={0}
+              playing={!!videoPlaying[0]}
+              onToggle={toggleVideo}
+              height="h-[100px]"
+            />
+          )}
+          {videoSlots[1] && (
+            <VideoPlayer
+              src={videoSlots[1]}
+              index={1}
+              playing={!!videoPlaying[1]}
+              onToggle={toggleVideo}
+              height="h-[100px]"
+            />
+          )}
+        </>
+      }
+    />
   )
 }
 
 function PromocionalLayout({
-  images, videos, videoPlaying, toggleVideo, infoBloques,
+  imageSlots,
+  videoSlots,
+  videoPlaying,
+  toggleVideo,
+  infoBloques,
 }: {
-  images: string[]; videos: string[]; videoPlaying: Record<number, boolean>; toggleVideo: (i: number, el: HTMLVideoElement | null) => void; infoBloques?: InfoBloque[]
+  imageSlots: Array<string | null>
+  videoSlots: Array<string | null>
+  videoPlaying: Record<number, boolean>
+  toggleVideo: (i: number, el: HTMLVideoElement | null) => void
+  infoBloques?: InfoBloque[]
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      {images[0] && (
-        <div className="relative h-[220px]">
-          <img src={images[0]} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <div className="absolute bottom-3 left-3 right-3">
-            <p className="text-white text-sm font-semibold drop-shadow-lg">Oferta Especial</p>
-            <p className="text-slate-200 text-[10px] drop-shadow">Aprovecha la promoción por tiempo limitado</p>
-          </div>
-        </div>
-      )}
-      {images[1] && (
-        <div className="h-[120px]">
-          <img src={images[1]} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
-      {videos[0] && (
-        <VideoPlayer src={videos[0]} index={0} playing={!!videoPlaying[0]} onToggle={toggleVideo} height="h-[120px]" />
-      )}
-      <CustomInfoBlocks infoBloques={infoBloques} />
-    </div>
+    <TemplateLayout
+      infoBloques={infoBloques}
+      media={
+        <>
+          {imageSlots[0] && (
+            <MediaSlot src={imageSlots[0]} height="h-[220px]">
+              <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute bottom-3 left-3 right-3 z-10 pointer-events-none">
+                <p className="text-white text-sm font-semibold drop-shadow-lg">Oferta Especial</p>
+                <p className="text-slate-200 text-[10px] drop-shadow">
+                  Aprovecha la promoción por tiempo limitado
+                </p>
+              </div>
+            </MediaSlot>
+          )}
+          {imageSlots[1] && <MediaSlot src={imageSlots[1]} height="h-[120px]" />}
+          {videoSlots[0] && (
+            <VideoPlayer
+              src={videoSlots[0]}
+              index={0}
+              playing={!!videoPlaying[0]}
+              onToggle={toggleVideo}
+              height="h-[120px]"
+            />
+          )}
+        </>
+      }
+    />
   )
 }
 
 function MinimalLayout({
-  images, carouselIndex, goPrev, goNext, infoBloques,
+  carouselImages,
+  carouselIndex,
+  goPrev,
+  goNext,
+  infoBloques,
 }: {
-  images: string[]; carouselIndex: number; goPrev: () => void; goNext: () => void; infoBloques?: InfoBloque[]
+  carouselImages: string[]
+  carouselIndex: number
+  goPrev: () => void
+  goNext: () => void
+  infoBloques?: InfoBloque[]
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      <ImageCarousel images={images} index={carouselIndex} onPrev={goPrev} onNext={goNext} height="h-[260px]" />
-      <CustomInfoBlocks infoBloques={infoBloques} />
-    </div>
+    <TemplateLayout
+      infoBloques={infoBloques}
+      media={
+        <ImageCarousel
+          images={carouselImages}
+          index={carouselIndex}
+          onPrev={goPrev}
+          onNext={goNext}
+          height="h-[260px]"
+        />
+      }
+    />
   )
 }
 
 function CorporativaLayout({
-  images, videos, carouselIndex, goPrev, goNext, videoPlaying, toggleVideo, infoBloques,
+  carouselImages,
+  videoSlots,
+  carouselIndex,
+  goPrev,
+  goNext,
+  videoPlaying,
+  toggleVideo,
+  infoBloques,
 }: {
-  images: string[]; videos: string[]; carouselIndex: number; goPrev: () => void; goNext: () => void; videoPlaying: Record<number, boolean>; toggleVideo: (i: number, el: HTMLVideoElement | null) => void; infoBloques?: InfoBloque[]
+  carouselImages: string[]
+  videoSlots: Array<string | null>
+  carouselIndex: number
+  goPrev: () => void
+  goNext: () => void
+  videoPlaying: Record<number, boolean>
+  toggleVideo: (i: number, el: HTMLVideoElement | null) => void
+  infoBloques?: InfoBloque[]
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      <ImageCarousel images={images} index={carouselIndex} onPrev={goPrev} onNext={goNext} height="h-[180px]" />
-      {videos.length > 0 && (
-        <div className="grid grid-cols-2 gap-[2px]">
-          {videos.map((v, i) => (
-            <VideoPlayer key={i} src={v} index={i} playing={!!videoPlaying[i]} onToggle={toggleVideo} height="h-[100px]" />
-          ))}
-        </div>
-      )}
-      <CustomInfoBlocks infoBloques={infoBloques} />
-    </div>
+    <TemplateLayout
+      infoBloques={infoBloques}
+      media={
+        <>
+          <ImageCarousel
+            images={carouselImages}
+            index={carouselIndex}
+            onPrev={goPrev}
+            onNext={goNext}
+            height="h-[180px]"
+          />
+          {(videoSlots[0] || videoSlots[1]) && (
+            <div className="grid grid-cols-2 gap-[2px] shrink-0">
+              {videoSlots[0] && (
+                <VideoPlayer
+                  src={videoSlots[0]}
+                  index={0}
+                  playing={!!videoPlaying[0]}
+                  onToggle={toggleVideo}
+                  height="h-[100px]"
+                />
+              )}
+              {videoSlots[1] && (
+                <VideoPlayer
+                  src={videoSlots[1]}
+                  index={1}
+                  playing={!!videoPlaying[1]}
+                  onToggle={toggleVideo}
+                  height="h-[100px]"
+                />
+              )}
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }
 
 function DirectorioLayout({
-  videos, videoPlaying, toggleVideo, infoBloques,
+  videoSlots,
+  videoPlaying,
+  toggleVideo,
+  infoBloques,
 }: {
-  videos: string[]; videoPlaying: Record<number, boolean>; toggleVideo: (i: number, el: HTMLVideoElement | null) => void; infoBloques?: InfoBloque[]
+  videoSlots: Array<string | null>
+  videoPlaying: Record<number, boolean>
+  toggleVideo: (i: number, el: HTMLVideoElement | null) => void
+  infoBloques?: InfoBloque[]
 }) {
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      <div className="px-3 py-4 bg-gradient-to-br from-blue-900/30 to-purple-900/20 flex flex-col items-center">
-        <p className="text-slate-200 text-sm font-semibold mb-1">Directorio de Servicios</p>
-        <p className="text-slate-400 text-[10px]">Ubicaciones y contactos</p>
-      </div>
-      {videos[0] && (
-        <VideoPlayer src={videos[0]} index={0} playing={!!videoPlaying[0]} onToggle={toggleVideo} height="h-[200px]" />
-      )}
-      <CustomInfoBlocks infoBloques={infoBloques} />
-    </div>
+    <TemplateLayout
+      infoBloques={infoBloques}
+      media={
+        <>
+          <div className="shrink-0 px-3 py-4 bg-gradient-to-br from-blue-900/30 to-purple-900/20 flex flex-col items-center">
+            <p className="text-slate-200 text-sm font-semibold mb-1">Directorio de Servicios</p>
+            <p className="text-slate-400 text-[10px]">Ubicaciones y contactos</p>
+          </div>
+          {videoSlots[0] && (
+            <VideoPlayer
+              src={videoSlots[0]}
+              index={0}
+              playing={!!videoPlaying[0]}
+              onToggle={toggleVideo}
+              height="h-[200px]"
+            />
+          )}
+        </>
+      }
+    />
   )
 }
